@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+  netshot:
+    build: .
+    environment:
+      NETSHOT_DB_URL: "jdbc:postgresql://database/netshot01"
+      NETSHOT_DB_USERNAME: "netshot"
+      NETSHOT_DB_PASSWORD: "change_this_pass"
+      NETSHOT_DB_ENCRYPTIONPASSWORD: "change_this_pass_too"
+      NETSHOT_HTTP_TRUSTXFORWARDEDFOR: "true"
+    labels:
+      traefik.docker.network: ${COMPOSE_PROJECT_NAME}_front
+      traefik.http.routers.netshot-https.rule: "PathPrefix(`/`)"
+      traefik.http.routers.netshot-https.tls: true
+      traefik.http.routers.netshot-https.entrypoints: "web-secure"
+      traefik.http.services.netshot.loadbalancer.server.port: "8080"
+    expose:
+      - 8080
+    depends_on:
+      - database
+    ports:
+      - "162:1162/udp"
+      - "514:1514/udp"
+    networks:
+      - front
+      - database
+
+  database:
+    image: postgres:12
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: "change_this_pass"
+      POSTGRES_USER: "netshot"
+      POSTGRES_DB: "netshot01"
+    volumes:
+      - "dbdata:/var/lib/postgresql/data"
+    expose:
+      - 5432
+    networks:
+      - database
+
+  rproxy:
+    image: traefik:v2.10
+    command:
+      - --api.insecure=true
+      - --providers.docker
+      - --entrypoints.web.address=:80
+      - --entrypoints.web-secure.address=:443
+      - --entrypoints.web.http.redirections.entryPoint.to=web-secure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8087:80"
+      - "8743:443"
+      - "127.0.0.1:8080:8080"
+    networks:
+      - front
+
+volumes:
+  dbdata:
+
+networks:
+  front:
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+  database:
+    ipam:
+      config:
+        - subnet: 10.1.0.0/24

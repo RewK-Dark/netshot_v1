@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  netshot:
+    build: .
+    environment:
+      NETSHOT_DB_URL: "jdbc:postgresql://database/netshot01"
+      NETSHOT_DB_USERNAME: "netshot"
+      NETSHOT_DB_PASSWORD: "change_this_pass"
+      NETSHOT_DB_ENCRYPTIONPASSWORD: "change_this_pass_too"
+      NETSHOT_HTTP_TRUSTXFORWARDEDFOR: "true"
+    labels:
+      traefik.http.routers.netshot-https.rule: "PathPrefix(`/`)"
+      traefik.http.routers.netshot-https.tls: true
+      traefik.http.routers.netshot-https.entrypoints: "web-secure"
+      traefik.http.services.netshot.loadbalancer.server.port: "8080"
+    expose:
+      - 8080
+    depends_on:
+      - database
+    ports:
+      - "162:1162/udp"
+      - "514:1514/udp"
+      - "8787:8443/tcp"
+    networks:
+      - database
+    volumes:
+      - "./drivers:/usr/local/netshot/drivers"
+  database:
+    image: postgres:12
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: "change_this_pass"
+      POSTGRES_USER: "netshot"
+      POSTGRES_DB: "netshot01"
+    volumes:
+      - "dbdata:/var/lib/postgresql/data"
+    expose:
+      - 5432
+    networks:
+      - database
+
+volumes:
+  dbdata:
+
+networks:
+  database:
+    ipam:
+      config:
+        - subnet: 10.1.0.0/24
